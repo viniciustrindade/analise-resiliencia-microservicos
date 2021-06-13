@@ -1,0 +1,5 @@
+rootProject.name = 'sd'
+
+include 'producer'
+include 'consumer'
+

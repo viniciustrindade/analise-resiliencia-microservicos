@@ -1,0 +1,43 @@
+O objetivo desse trabalho foi avaliar a capacidade de resiliência de três experimentos de conexão entre o broker e a cloud. Foram eles: 
+1 - um serviço http não resiliente;
+2 - um microserviço com retry pattern e;
+3 - outro microserviço com circuit braker. 
+
+Foram avaliados tanto a vazão quanto o tempo de resposta de cada um dos experimentos, além disso, para os 3 experimentos foram definidos:
+1 - o tempo de conexão e o tempo de leitura do microserviço com o webservice em 1 segundo;
+2 - o número maximo de imagens  a serem requisitadas, 450 imagens, o número minimo de imagens a serem requisitadas, 350 imagens e ;
+3 - como condição de parada do experimento, o numero maximo de imagens suportado pelo buffer do broker de 10000 e;
+4 - o serviço da cloud ficou limitado a efetuar no máximo 60 requisições com intervalo de 5 segundos entre cada chamada.
+
+Utilizamos o seguinte roteiro padrão para todas as avaliações:
+Do lado produtor (producer):
+1. Iniciamos o serviço do broker mqtt no raspberryPI e para tal utilizando o eclipse mosquito.
+2. Iniciamos 2 câmeras virtuais que publicaram imagens a 120 Hz para o broker mqtt.
+3. Iniciamos 1 serviço subscriber mqtt para capturar e enviar todas as imagens para o um buffer (queue).
+4. Iniciamos um webservice que recebia como parâmetro a quantidade de imagens que deveria remover do buffer.
+
+Do lado consumidor (consumer):
+1. Iniciamos um serviço "cloud" que se conectava a um microserviço e esse se conectava ao webservice do broker.
+2. O serviço da cloud armazenou as imagens solictadas ao microserviço em arquivo texto e alem disso foi criado um arquivo csv para guardar as metricas utilizadas na medição da qualidade da conexão como vazão e tempo de resposta.
+
+Avaliação o microserviço não resiliente
+Para avaliar o microserviço não resiliente, iniciamos todos os procedimos para o lado "produtor" e com o microserviço não resiliente iniciamos o lado "consumidor". Avaliamos que o microserviço apresentou perdas de conexões com o webservice do broker por conta do número de requisições em paralelo. Dessa forma, com as perdas de conexão e consequentemente com baixa vazão para o microserviço o buffer do broker chegou ao seu limite de 10000 imagens com 15 ciclos de requisições da cloud. O arquivo final de imagens apresentou tamanho 1.4MB.
+
+Avaliação o microserviço com retry pattern
+Para avaliar o microserviço com retry pattern, iniciamos todos os procedimos para o lado "produtor", configuramos como padrão de resiliência 2 retentativas com um atraso de 100ms e com o microserviço em questão, iniciamos o lado "consumidor". Tratamos a perda de conexão com o webservice da seguinte forma, se após 2 tentativas houvesse uma falha configuramos o envio de uma segunda requisição com uma quantidade de imagens menor. Avaliamos que o microserviço em questão apresentou perdas de conexões com o webservice do broker e automaticamente efetuou novas requisições com uma quantidade minima de imagens. Mesmo com resiliência não alcançamos o cliclo máximo de requisições, 60 ciclos,  e o buffer do broker chegou ao seu limite de 10000 imagens com 36 ciclos de requisições da cloud.O arquivo final de imagens apresentou tamanho 3.3MB.
+
+Para avaliar o microserviço com circuit braker, iniciamos todos os procedimos para o lado "produtor" e com o microserviço em questão iniciamos o lado "consumidor". Em caso de perda de conexão com o webservice configuramos o envio de uma segunda requisição com uma quantidade de imagens menor. A diferença principal em relação ao retry pattern é que não há retentativas. Segundo a tabela abaixo avaliamos que o microserviço em questão apresentou perdas de conexões com o webservice do broker e automaticamente efetuou novas requisições com uma quantidade minima de imagens tambêm. Mesmo com resiliência não alcançamos o cliclo máximo de requisições, 60 ciclos, e o buffer do broker chegou ao seu limite de 10000 imagens com 45 ciclos de requisições da cloud. O arquivo final de imagens apresentou tamanho 3.6MB.
+
+Considerando indice de velocidade como sendo vazão/tempo de resposta, o tamanho do arquivo de imagens e os ciclos executados por cada experimentos, nota-se que:
+1 - o microserviço não resiliente teve 15 ciclos, um total de 6750 imagens em 15 segundos, um indice de 457 imagens/s e um arquivo de 1.4MB;
+2 - o microserviço retry pattern teve 36 ciclos, 15900 imagens em 49 segundos, um indice de 324 imagens/s e um arquivo de 3.3 MB e;
+3 - o microserviço circuit braker teve 45 ciclos, 17750 imagens em 66 segundos, um indice de 268 simagens/s e um arquivo de 3.6MB. 
+
+Apesar do circuit braker apresentar ser mais lento ele foi o mais resiliente pois ao final apresentou maior tempo de execução e um arquivo de imagens maior. Em segundo lugar ficou o retry pattern e por ultimo o serviço não resiliente.
+
+Dessa forma, podemos concluir que um serviço resiliente não é aquele que apresenta a maior velcidade de transferencia e sim o que apresenta ao final maior quantidade de dados. Nesse caso especifico, quanto maior a quantidade de imagens, maior é o nível de detalhe relacionado a incidentes de seguranças em bancos.
+
+
+
+
+
